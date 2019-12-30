@@ -5,6 +5,9 @@
 		},
 		{
 			"path": "D:\\Projects\\Sn\\LocalGit\\test\\Mbed5-Projects\\mbed-os"
+		},
+		{
+			"path": "D:\\Projects\\Sn\\LocalGit\\test\\Mbed5-Projects\\custom_targets"
 		}
 	],
 	"settings": {
@@ -22,7 +25,8 @@
 			"mstd_iterator": "cpp",
 			"*.tcc": "cpp",
 			"fstream": "cpp",
-			"xstring": "cpp"
+			"xstring": "cpp",
+			"functional": "cpp"
 		}
 	}
 }

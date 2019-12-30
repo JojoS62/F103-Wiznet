@@ -2,14 +2,10 @@
     "configurations": [
         {
             "forcedInclude": [
-                "${workspaceFolder}/BUILD/STM32F407VE_BLACK/GCC_ARM-DEBUG/mbed_config.h"
+                "${workspaceFolder}/BUILD/BLUEPILL_F103RB/GCC_ARM-RELEASE/mbed_config.h"
             ],
             "name": "Windows",
             "includePath": [
-                "${workspaceFolder}/../../components/COMPONENT_SDIO/*",
-                "${workspaceFolder}/../../components/COMPONENT_SDIO/TARGET_STM/TARGET_STM32F4/*",
-                "${workspaceFolder}/../../components/COMPONENT_SDIO/util/*",
-                "${workspaceFolder}/../../custom_targets/TARGET_STM/TARGET_STM32F4/TARGET_STM32F407xE/TARGET_STM32F407VE_BLACK/*",
                 "${workspaceFolder}/../../libs/*",
                 "${workspaceFolder}/../../libs/Adafruit-GFX-Library/*",
                 "${workspaceFolder}/../../libs/Adafruit-GFX-Library/Fonts/*",

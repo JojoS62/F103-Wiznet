@@ -1,4 +1,6 @@
 
+features/netsocket/*
+
 MQTTClient/*
 WebsocketClient/*
 TFTPServer/*
