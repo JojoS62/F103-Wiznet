@@ -2,6 +2,12 @@
 features/netsocket/*
 
 MQTTClient/*
+MQTTPacket/*
 WebsocketClient/*
 TFTPServer/*
 mbed-http-server/*
+util/cmdb.*
+Adafruit-GFX-Library/*
+Chart/*
+lvgl/*
+Display/*

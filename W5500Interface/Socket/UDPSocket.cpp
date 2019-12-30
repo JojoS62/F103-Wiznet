@@ -79,7 +79,7 @@ int UDPSocket::receiveFrom(Endpoint &remote, char *buffer, int length)
     readEndpoint(remote, info);
     int udp_size = info[6]<<8|info[7];
     //TEST_ASSERT(udp_size <= (size-sizeof(info)));
-    if (udp_size > (size-sizeof(info))) {
+    if (udp_size > (size - (int)sizeof(info))) {
         return -1;
     }
     /* Perform Length check here to prevent buffer overrun */

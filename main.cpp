@@ -11,8 +11,6 @@ using namespace     std;
 const int OFF = 0;
 const int ON  = 1;
 
-Serial              serial(PA_9, PA_10);
-
     /**
     * Constructor
     *
@@ -181,7 +179,7 @@ void sendHTTP(TCPSocketConnection& client, string& header, string& content) {
     sprintf(contentLeght, "%d", content.length());
     header += string(contentLeght) + "\r\n";
     header += "Pragma: no-cache\r\n";
-    header += "Connection: About to close\r\n";
+    header += "Connection: close\r\n";
     header += "\r\n";
 
     string  webpage = header + content;
@@ -196,7 +194,7 @@ void sendHTTP(TCPSocketConnection& client, string& header, string& content) {
  */
 void closeClient(void) {
     client.close();
-    serial.printf("Connection closed.\n\rTCP server is listening...\n\r");
+    printf("Connection closed.\n\rTCP server is listening...\n\r");
 }
 
 /**
@@ -211,53 +209,53 @@ int main(void) {
     int     ret = eth.init(MY_MAC);   // use DHCP
 
     if(!ret) {
-        serial.printf("Initialized, MY_MAC: %s\n", eth.getMACAddress());
-        serial.printf
-            (
-                "Connected, MY_IP: %s, MY_NETMASK: %s, MY_GATEWAY: %s\n",
+        printf("Initialized, MY_MAC: %s\n", eth.getMACAddress());
+    }
+    else {
+        printf("Error eth.init() - ret = %d\n", ret);
+        return -1;
+    }
+
+    ret = eth.connect();
+    if (ret < 0) {
+        printf("Connected, MY_IP: %s, MY_NETMASK: %s, MY_GATEWAY: %s\n",
                 eth.getIPAddress(),
                 eth.getNetworkMask(),
                 eth.getGateway()
             );
     }
-    else {
-        serial.printf("Error eth.init() - ret = %d\n", ret);
-        return -1;
-    }
 
-    ret = eth.connect();
-    
     //setup tcp socket
     if(server.bind(MY_PORT) < 0) {
-        serial.printf("TCP server bind failed.\n\r");
+        printf("TCP server bind failed.\n\r");
         return -1;
     }
     else {
-        serial.printf("TCP server bind succeeded.\n\r");
+        printf("TCP server bind succeeded.\n\r");
         serverIsListening = true;
     }
 
     if(server.listen(1) < 0) {
-        serial.printf("TCP server listen failed.\n\r");
+        printf("TCP server listen failed.\n\r");
         return -1;
     }
     else {
-        serial.printf("TCP server is listening...\n\r");
+        printf("TCP server is listening...\n\r");
     }
 
     while(serverIsListening) {
         if(server.accept(client) >= 0) {
             char    buf[1024] = { };
             
-            serial.printf("Client connected!\n\rIP: %s\n\r", client.get_address());
+            printf("Client connected!\n\rIP: %s\n\r", client.get_address());
             
             switch(client.receive(buf, 1023)) {
             case 0:
-                serial.printf("Recieved buffer is empty.\n\r");
+                printf("Recieved buffer is empty.\n\r");
                 break;
 
             case -1:
-                serial.printf("Failed to read data from client.\n\r");
+                printf("Failed to read data from client.\n\r");
                 break;
 
             default:

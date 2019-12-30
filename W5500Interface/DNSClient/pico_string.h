@@ -34,7 +34,7 @@ public:
     void append(const char* s) {
         append(s, strlen(s));
     }
-    char* c_str() {
+    const char* c_str() {
         if (_buf) {
             return _buf;
         }

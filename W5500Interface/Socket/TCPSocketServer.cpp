@@ -70,7 +70,7 @@ int TCPSocketServer::accept(TCPSocketConnection& connection)
     }
     uint32_t ip = eth->sreg<uint32_t>(_sock_fd, Sn_DIPR);
     char host[16];
-    snprintf(host, sizeof(host), "%d.%d.%d.%d", (ip>>24)&0xff, (ip>>16)&0xff, (ip>>8)&0xff, ip&0xff);
+    snprintf(host, sizeof(host), "%ld.%ld.%ld.%ld", (ip>>24)&0xff, (ip>>16)&0xff, (ip>>8)&0xff, ip&0xff);
     uint16_t port = eth->sreg<uint16_t>(_sock_fd, Sn_DPORT);
 
     // change this server socket to connection socket.
