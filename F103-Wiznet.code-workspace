@@ -29,7 +29,8 @@
 			"*.tcc": "cpp",
 			"fstream": "cpp",
 			"xstring": "cpp",
-			"functional": "cpp"
+			"functional": "cpp",
+			"spi_api.h": "c"
 		}
 	}
 }

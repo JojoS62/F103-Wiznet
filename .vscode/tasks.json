@@ -26,16 +26,16 @@
     "tasks": [
         {
             "label": "compile release",
-            "group": {
-                "kind": "build",
-                "isDefault": true
-            },
+            "group": "build",
             "command": "mbed",
             "args": ["compile", "--build", "../../BUILD/${workspaceFolderBasename}/Release", "--source", ".", "--source",  "../../mbed-os", "--source", "../../libs", "--source", "../../drivers", "--source", "../../custom_targets", "--source", "../../components", "--profile", "release"]
         },
         {
             "label": "compile debug",
-            "group": "build",
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            },
             "command": "mbed",
             "args": ["compile", "--build", "../../BUILD/${workspaceFolderBasename}/Debug", "--source", ".", "--source",  "../../mbed-os", "--source", "../../libs", "--source", "../../drivers", "--source", "../../custom_targets", "--source", "../../components", "--profile", "debug"]
         },

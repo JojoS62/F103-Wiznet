@@ -11,23 +11,14 @@ using namespace     std;
 const int OFF = 0;
 const int ON  = 1;
 
-    /**
-    * Constructor
-    *
-    * \param mosi mbed pin to use for SPI
-    * \param miso mbed pin to use for SPI
-    * \param sclk mbed pin to use for SPI
-    * \param cs chip select of the WIZnet_Chip
-    * \param reset reset pin of the WIZnet_Chip
-    */
-//    EthernetInterface(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName reset);
+SPI spi(PB_15, PB_14, PB_13);
 
 #if defined(TARGET_LPC1768)
 EthernetInterface   eth(p11, p12, p13, p8, p14);        // MOSI, MISO, SCK, CS, RESET
 #elif defined(TARGET_LPC11U24)
 EthernetInterface   eth(P16, P15, P13, P17, P18);       // MOSI, MISO, SCK, CS, RESET
 #elif defined(TARGET_BLUEPILL_F103RB)
-EthernetInterface   eth(PB_15, PB_14, PB_13, PB_12, NC);       // MOSI, MISO, SCK, CS, RESET
+EthernetInterface   eth(&spi, PB_12, NC);       // MOSI, MISO, SCK, CS, RESET
 #elif defined(TARGET_NUCLEO_F103RB) || defined(TARGET_NUCLEO_L152RE) || defined(TARGET_NUCLEO_F030R8)  \
    || defined(TARGET_NUCLEO_F401RE) || defined(TARGET_NUCLEO_F302R8) || defined(TARGET_NUCLEO_L053R8)  \
    || defined(TARGET_NUCLEO_F411RE) || defined(TARGET_NUCLEO_F334R8) || defined(TARGET_NUCLEO_F072RB)  \
@@ -195,6 +186,7 @@ void sendHTTP(TCPSocketConnection& client, string& header, string& content) {
 void closeClient(void) {
     client.close();
     printf("Connection closed.\n\rTCP server is listening...\n\r");
+    wait_us(10*1000);
 }
 
 /**
@@ -204,6 +196,9 @@ void closeClient(void) {
  * @retval
  */
 int main(void) {
+    spi.frequency(1000000);
+    wait_us(500*1000);
+
 //    int     ret = eth.init(MY_MAC, MY_IP, MY_NETMASK, MY_GATEWAY);
 //    int     ret = eth.init(MY_IP, MY_NETMASK, MY_GATEWAY);
     int     ret = eth.init(MY_MAC);   // use DHCP

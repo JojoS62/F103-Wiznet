@@ -1,13 +1,12 @@
 
 #include "mbed.h"
-#include "mbed_debug.h"
 #include "wiznet.h"
 #include "DNSClient.h"
 
 #ifdef USE_W5500
 
 //Debug is disabled by default
-#if 0
+#if 1
 #define DBG(...) do{debug("%p %d %s ", this,__LINE__,__PRETTY_FUNCTION__); debug(__VA_ARGS__); } while(0);
 //#define DBG(x, ...) debug("[W5500:DBG]"x"\r\n", ##__VA_ARGS__);
 #define WARN(x, ...) debug("[W5500:WARN]"x"\r\n", ##__VA_ARGS__);
