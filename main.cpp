@@ -133,10 +133,8 @@ string& movedPermanently(uint8_t flag) {
  * @retval
  */
 string& showWebPage(uint8_t status) {
-    char roomTempStr[5];
-
-    //roomTemp = ds1820.read();
-    sprintf(roomTempStr, "%3.1f", roomTemp);
+    char roomTempStr[8];
+    snprintf(roomTempStr, sizeof(roomTempStr), "%6.1f", roomTemp);
 
     httpContent = "<h2><a href=\".\" title=\"Click to refresh the page\">Smart Home</a></h2>"; 
     httpContent += "<pre>Temperature:\t" + string(roomTempStr) + "&deg;C\r\n</pre>";
@@ -186,7 +184,7 @@ void sendHTTP(TCPSocketConnection& client, string& header, string& content) {
 void closeClient(void) {
     client.close();
     printf("Connection closed.\n\rTCP server is listening...\n\r");
- 
+}
 
 /**
  * @brief
