@@ -147,8 +147,12 @@ void WIZnet_Chip::reset()
         reset_pin = 0;
         wait_us(500); // 500us (w5500)
         reset_pin = 1;
-        wait_ms(400); // 400ms (w5500)
+        wait_us(1000*400); // 400ms (w5500)
+    } else {
+        setMR(MR_RST);  // software reset
+        wait_us(50*1000); // 50ms
     }
+
 
 #if defined(USE_WIZ550IO_MAC)
     //reg_rd_mac(SHAR, mac); // read the MAC address inside the module
@@ -177,7 +181,8 @@ bool WIZnet_Chip::close(int socket)
         scmd(socket, DISCON);
     }
     scmd(socket, CLOSE);
-    sreg<uint8_t>(socket, Sn_IR, 0xff);
+    sreg<uint8_t>(socket, Sn_IR, 0xff);                         // clear all interrupts
+    while (sreg<uint8_t>(socket, Sn_SR) != SOCK_CLOSED) {};     // wait until closed
     return true;
 }
 
@@ -352,7 +357,7 @@ void WIZnet_Chip::spi_read(uint16_t addr, uint8_t cb, uint8_t *buf, uint16_t len
     }
     debug("\r\n");
     if ((addr&0xf0ff)==0x4026 || (addr&0xf0ff)==0x4003) {
-        wait_ms(200);
+        wait_us(1000*200);
     }
 #endif
 }
