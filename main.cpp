@@ -186,8 +186,7 @@ void sendHTTP(TCPSocketConnection& client, string& header, string& content) {
 void closeClient(void) {
     client.close();
     printf("Connection closed.\n\rTCP server is listening...\n\r");
-    wait_us(10*1000);
-}
+ 
 
 /**
  * @brief
