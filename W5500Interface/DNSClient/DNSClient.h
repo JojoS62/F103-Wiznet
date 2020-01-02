@@ -2,14 +2,23 @@
 #pragma once
 
 #include "UDPSocket.h"
+
+//#define DBG_DNS 1
  
 class DNSClient {
 public:
-    DNSClient(const char* hostname = NULL);
-    DNSClient(Endpoint* pHost);
+    DNSClient();
+    DNSClient(NetworkStack *ns, const char* hostname = NULL);
+    DNSClient(NetworkStack *ns, SocketAddress* pHost);
+    
+    int setup(NetworkStack *ns);
+
     virtual ~DNSClient();
-    bool lookup(const char* hostname = NULL);
-    uint32_t ip;
+    bool lookup(const char* hostname);
+    bool set_server(const char* serverip, int port=53);
+    uint32_t get_ip() {return m_ip;}
+    const char* get_ip_address() {return m_ipaddr;}
+    
 protected:
     void poll();
     void callback();
@@ -20,6 +29,7 @@ protected:
     Timer m_interval;
     int m_retry;
     const char* m_hostname;
+
 private:
     enum MyNetDnsState
     {
@@ -31,4 +41,8 @@ private:
     };
     MyNetDnsState m_state;
     UDPSocket *m_udp;
+    NetworkStack *m_ns;
+
+    uint32_t m_ip;
+    char m_ipaddr[24];
 };

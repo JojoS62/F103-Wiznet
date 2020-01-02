@@ -1,8 +1,20 @@
-{
+{  
     "target_overrides": {
         "*": {
-            "platform.stdio-baud-rate": 115200
-        }
-    },
-    "requires": ["bare-metal"]
+            "mbed-http.http-buffer-size" : 512,
+            "platform.stdio-baud-rate": 115200,
+            "platform.stdio-convert-newlines": true
+        }, 
+        "NUCLEO_F411RE": {
+            "target.clock_source": "USE_PLL_HSI",
+            "target.stdio_uart_tx": "PA_9",
+            "target.stdio_uart_rx": "PA_10"
+        },
+        "BLACKPILL_F411CE": {
+            "target.clock_source": "USE_PLL_HSI"
+        },
+        "BLUEPILL_F103RB": {
+            "target.default_lib": "small"
+        } 
+    }
 }

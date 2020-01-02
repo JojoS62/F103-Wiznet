@@ -1,3 +1,9 @@
+/*
+* DHCPClient.h
+* Mbed OS5 support added by Sergei G <https://os.mbed.com/users/sgnezdov/>
+* Ported here on Aug/09/2018
+*
+*/
 // DHCPClient.h 2013/4/10
 #ifndef DHCPCLIENT_H
 #define DHCPCLIENT_H
@@ -24,7 +30,7 @@
 class DHCPClient {
 public:
     DHCPClient();
-    int setup(int timeout_ms = 15*1000);
+    int setup(NetworkStack *ns, uint8_t mac_addr[6], int timeout_ms = 15*1000);
     uint8_t chaddr[6]; // MAC
     uint8_t yiaddr[4]; // IP
     uint8_t dnsaddr[4]; // DNS
@@ -42,13 +48,13 @@ private:
     bool verify(uint8_t buf[], int len);
     void callback();
     UDPSocket* m_udp;
-    Endpoint m_server;
+    SocketAddress m_server;
     uint8_t xid[4];
     bool exit_flag;
     Timer m_interval;
     int m_retry;
     uint8_t m_buf[DHCP_MAX_PACKET_SIZE];
     int m_pos;
-    WIZnet_Chip* eth;
+    //WIZnet_Chip* eth;
 };
 #endif //DHCPCLIENT_H

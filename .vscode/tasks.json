@@ -46,6 +46,12 @@
             "args": ["compile", "--build", "../../BUILD/${workspaceFolderBasename}/Develop", "--source", ".", "--source",  "../../mbed-os", "--source", "../../libs", "--source", "../../drivers", "--source", "../../custom_targets", "--source", "../../components", "--profile", "develop"]
         },
         {
+            "label": "list config options",
+            "group": "build",
+            "command": "mbed",
+            "args": ["compile", "--config", "--source", ".", "--source",  "../../mbed-os", "--source", "../../libs", "--source", "../../drivers", "--source", "../../custom_targets", "--source", "../../components"]
+        },
+        {
             "label": "echo",
             "type": "shell",
             "command": "echo \n\rworksspaceFolder: ${workspaceFolder}\n\rworkspaceFolderBasename: ${workspaceFolderBasename}"

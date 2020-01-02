@@ -1,3 +1,10 @@
+/*
+* DHCPClient.cpp
+* Mbed OS5 support added by Sergei G <https://os.mbed.com/users/sgnezdov/>
+* Ported here on Aug/09/2018
+*
+*/
+
 // DHCPClient.cpp 2013/4/10
 #include "mbed.h"
 #include "mbed_debug.h"
@@ -110,8 +117,9 @@ bool DHCPClient::verify(uint8_t buf[], int len) {
 
 void DHCPClient::callback()
 {
-    Endpoint host;
-    int recv_len = m_udp->receiveFrom(host, (char*)m_buf, sizeof(m_buf));
+    DBG("DHCPClient callback\n");
+    SocketAddress host;
+    int recv_len = m_udp->recvfrom(&host, (char*)m_buf, sizeof(m_buf));
     if (recv_len < 0) {
         return;
     }
@@ -121,7 +129,7 @@ void DHCPClient::callback()
     int r = offer(m_buf, recv_len);
     if (r == DHCPOFFER) {
         int send_size = request();
-        m_udp->sendTo(m_server, (char*)m_buf, send_size);
+        m_udp->sendto(m_server, (char*)m_buf, send_size);
     } else if (r == DHCPACK) {
         exit_flag = true;
     }
@@ -155,23 +163,33 @@ void  DHCPClient::add_option(uint8_t code, uint8_t* buf, int len)
     }
 }
 
-int DHCPClient::setup(int timeout_ms)
+int DHCPClient::setup(NetworkStack *ns, uint8_t mac_addr[6], int timeout_ms)
 {
-    eth = WIZnet_Chip::getInstance();
-    if (eth == NULL) {
-        return -1;
-    }    
-    eth->reg_rd_mac(SHAR, chaddr);
+    memcpy(chaddr, mac_addr, 6);
+    
     int interval_ms = 5*1000; // 5000msec
     if (timeout_ms < interval_ms) {
         interval_ms = timeout_ms;
     }
-    m_udp = new UDPSocket;
-    m_udp->init();
-    m_udp->set_blocking(false);
-    eth->reg_wr<uint32_t>(SIPR, 0x00000000); // local ip "0.0.0.0"
-    m_udp->bind(68); // local port
-    m_server.set_address("255.255.255.255", 67); // DHCP broadcast
+    
+    UDPSocket udp_sock;
+    m_udp = &udp_sock;
+    {
+        nsapi_error_t err = udp_sock.open(ns);
+        if (err) {
+            DBG("setup failed to open UDP socket.");
+            return err;
+        }
+        udp_sock.set_blocking(false);
+        err = udp_sock.bind(68); // local port
+        if (err) {
+            DBG("setup failed in bind: %d", err);
+            return err;
+        }
+    }
+    
+    m_server.set_ip_address("255.255.255.255"); // DHCP broadcast
+    m_server.set_port(67);                      // DHCP broadcast
     exit_flag = false;
     int err = 0;
     int seq = 0;
@@ -183,27 +201,34 @@ int DHCPClient::setup(int timeout_ms)
                 seq++;
                 break;
             case 1:
-                send_size = discover();
-                m_udp->sendTo(m_server, (char*)m_buf, send_size);
-                m_interval.reset();
-                m_interval.start();
-                seq++;
+                {
+                    send_size = discover();
+                    nsapi_size_or_error_t err2 = udp_sock.sendto(m_server, (char*)m_buf, send_size);
+                    if (err2 < 0) {
+                        DBG("setup sendto error: %d\n", err2);
+                        return err2;
+                    }
+                    m_interval.reset();
+                    m_interval.start();
+                    seq++;
+                }
                 break;
             case 2:
-                callback();
-                if (m_interval.read_ms() > interval_ms) {
-                    DBG("m_retry: %d\n", m_retry);
-                    if (++m_retry >= (timeout_ms/interval_ms)) {
-                        err = -1;
-                        exit_flag = true;
+                {
+                    callback(); 
+                    if (m_interval.read_ms() > interval_ms) {
+                        DBG("m_retry: %d\n", m_retry);
+                        if (++m_retry >= (timeout_ms/interval_ms)) {
+                            err = -1;
+                            exit_flag = true;
+                        }
+                        seq--;
                     }
-                    seq--;
                 }
                 break;
         }
     }
     DBG("m_retry: %d, m_interval: %d\n", m_retry, m_interval.read_ms());
-    delete m_udp;
     return err;
 }
 

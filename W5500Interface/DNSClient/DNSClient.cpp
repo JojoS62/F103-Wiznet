@@ -6,19 +6,37 @@
 #include "dnsname.h"
 #include "wiznet.h"
 
-#define DBG_DNS 0
-
 #if DBG_DNS
 #define DBG2(...) do{debug("[DNS]%p %d %s ", this,__LINE__,__PRETTY_FUNCTION__); debug(__VA_ARGS__); } while(0);
 #else
 #define DBG2(...) while(0);
 #endif
 
-DNSClient::DNSClient(const char* hostname) : m_state(MYNETDNS_START), m_udp(NULL) {
-    m_hostname = hostname;
+static SocketAddress theDnsServer;
+
+DNSClient::DNSClient() : m_state(MYNETDNS_START), m_udp(NULL) {
+    m_ns = NULL;
+
+    //default to google
+    theDnsServer.set_ip_address("8.8.8.8"); // DNS
+    theDnsServer.set_port(53); // DNS
 }
 
-DNSClient::DNSClient(Endpoint* pHost) : m_state(MYNETDNS_START), m_udp(NULL) {
+DNSClient::DNSClient(NetworkStack *ns, const char* hostname) : m_state(MYNETDNS_START), m_udp(NULL) {
+    m_hostname = hostname;
+    m_ns       = ns;
+    
+    //default to google
+    theDnsServer.set_ip_address("8.8.8.8"); // DNS
+    theDnsServer.set_port(53); // DNS
+}
+
+DNSClient::DNSClient(NetworkStack *ns, SocketAddress* pHost) : m_state(MYNETDNS_START), m_udp(NULL) {
+    m_ns = ns;
+
+    //default to google
+    theDnsServer.set_ip_address("8.8.8.8"); // DNS
+    theDnsServer.set_port(53); // DNS
 }
 
 DNSClient::~DNSClient() {
@@ -27,17 +45,29 @@ DNSClient::~DNSClient() {
     }
 }
 
+int DNSClient::setup(NetworkStack *ns) {
+    m_ns = ns;
+    return 0;
+}
+
+bool DNSClient::set_server(const char* serverip, int port) {
+    theDnsServer.set_ip_address(serverip); 
+    theDnsServer.set_port(port);
+    return true;
+}
+
 void DNSClient::callback()
 {
     uint8_t buf[512];
-    Endpoint host;
-    int len = m_udp->receiveFrom(host, (char*)buf, sizeof(buf));
+    SocketAddress host;
+    int len = m_udp->recvfrom(&host, (char*)buf, sizeof(buf));
     if (len < 0) {
         return;
     }
     if (memcmp(buf+0, m_id, 2) != 0) { //verify
         return;
     }
+    
     int rcode = response(buf, len);
     if (rcode == 0) {
         m_state = MYNETDNS_OK;
@@ -68,7 +98,8 @@ int DNSClient::response(uint8_t buf[], int size) {
         int rdata_pos = pos;
         pos += rdlength;
         if (type == 1) { // A record
-            ip = (buf[rdata_pos]<<24) | (buf[rdata_pos+1]<<16) | (buf[rdata_pos+2]<<8) | buf[rdata_pos+3];
+            m_ip = (buf[rdata_pos]<<24) | (buf[rdata_pos+1]<<16) | (buf[rdata_pos+2]<<8) | buf[rdata_pos+3];
+            sprintf(m_ipaddr, "%d.%d.%d.%d", buf[rdata_pos],buf[rdata_pos+1],buf[rdata_pos+2],buf[rdata_pos+3]);
         }
 #if DBG_DNS
         printf("%s", name.str.c_str());
@@ -109,11 +140,9 @@ int DNSClient::query(uint8_t buf[], int size, const char* hostname) {
 void DNSClient::resolve(const char* hostname) {
     if (m_udp == NULL) {
         m_udp = new UDPSocket;
+        m_udp->open(m_ns);
     }
-    m_udp->init();
     m_udp->set_blocking(false);
-    Endpoint server;
-    server.set_address("8.8.8.8", 53); // DNS
     m_udp->bind(rand()&0x7fff);
     uint8_t buf[256];                
     int size = query(buf, sizeof(buf), hostname);
@@ -121,7 +150,7 @@ void DNSClient::resolve(const char* hostname) {
     printf("hostname:[%s]\n", hostname);
     printHex(buf, size);
 #endif
-    m_udp->sendTo(server, (char*)buf, size);
+    m_udp->sendto(theDnsServer, (char*)buf, size);
     m_interval.reset();
     m_interval.start();
 }
@@ -159,8 +188,46 @@ void DNSClient::poll() {
     }
 }
 
+//tests for a valid IP address, returns 0 if invalid IP address format, returns ip address if valid
+static uint32_t
+isValidIP(const char* ip) {
+    int i1, i2, i3, i4;
+    int len = strlen(ip);
+
+    if (len < 7) return 0;
+
+    //count the number of dots, there must be 3
+    int dotcount = 0;
+    for (int i = 0; i < len; i++) {
+        if (ip[i] == '.' ) dotcount++;
+    }
+
+    //there must be exactly 3 dots
+    if (dotcount != 3) return 0;
+
+    sscanf((char*)ip, "%d.%d.%d.%d", &i1, &i2, &i3, &i4);
+
+    if (strlen(ip) <= 16 && (i1 >= 0 && i1 <= 255) && (i2 >= 0 && i2 <= 255) &&
+            (i3 >= 0 && i3 <= 255) && (i4 >= 0 && i4 <= 255)) {
+        return ((i1<<24) | (i2<<16) | (i3<<8) | i4);
+    }
+    return 0;
+}
+
 bool DNSClient::lookup(const char* hostname) {
     m_hostname = hostname;
+    
+    uint32_t ip = isValidIP(hostname);
+
+    //check if hostname is an IP address
+    if (ip > 0) {
+        //if it is already an IP address just return immediately
+        m_ip = ip;
+        strcpy(m_ipaddr, hostname);
+        m_state = MYNETDNS_OK;
+        return true;
+    }
+    
     m_state = MYNETDNS_START;
     while(1) {
         poll();
@@ -168,6 +235,11 @@ bool DNSClient::lookup(const char* hostname) {
         if (m_state != MYNETDNS_PROCESSING) {
             break;
         } 
+    }
+    
+    if (m_udp) {
+        delete m_udp;
+        m_udp = NULL;
     }
     return m_state == MYNETDNS_OK;
 }
