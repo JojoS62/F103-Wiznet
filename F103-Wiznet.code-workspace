@@ -30,7 +30,11 @@
 			"fstream": "cpp",
 			"xstring": "cpp",
 			"functional": "cpp",
-			"spi_api.h": "c"
+			"spi_api.h": "c",
+			"memory": "cpp",
+			"random": "cpp",
+			"optional": "cpp",
+			"mstd_memory": "cpp"
 		}
 	}
 }

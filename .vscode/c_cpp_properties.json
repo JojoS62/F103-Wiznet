@@ -6,6 +6,7 @@
             ],
             "name": "Windows",
             "includePath": [
+                "${workspaceFolder}/W5500Interface/*",
                 "${workspaceFolder}/../../libs/*",
                 "${workspaceFolder}/../../libs/Adafruit-GFX-Library/*",
                 "${workspaceFolder}/../../libs/Adafruit-GFX-Library/Fonts/*",
