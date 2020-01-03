@@ -25,7 +25,7 @@
 #define DBG_SPI 0
 
 #if !defined(MBED_CONF_W5500_SPI_SPEED)
-#define MBED_CONF_W5500_SPI_SPEED   10000
+#define MBED_CONF_W5500_SPI_SPEED   10000000
 #endif
 
 using namespace W5500;
@@ -146,7 +146,6 @@ bool WIZnet_Chip::is_connected(int socket)
 // Reset the chip & set the buffer
 void WIZnet_Chip::reset()
 {
-//    reset_pin = 1;
     if(connected_reset_pin) {
         reset_pin = 0;
         wait_us(500); // 500us (w5500)
@@ -155,17 +154,13 @@ void WIZnet_Chip::reset()
     }
 
 #if defined(USE_WIZ550IO_MAC)
-    //reg_rd_mac(SHAR, mac); // read the MAC address inside the module
+    reg_rd_mac(SHAR, mac); // read the MAC address inside the module
 #endif
-    //reg_wr_mac(SHAR, mac);
-
     // set RX and TX buffer size
     for (int socket = 0; socket < MAX_SOCK_NUM; socket++) {
         sreg<uint8_t>(socket, Sn_RXBUF_SIZE, 2);
         sreg<uint8_t>(socket, Sn_TXBUF_SIZE, 2);
     }
-
-    reg_rd_mac(SHAR, mac); // read the MAC address inside the module
 }
 
 

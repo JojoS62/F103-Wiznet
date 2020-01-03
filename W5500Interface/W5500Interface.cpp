@@ -125,8 +125,8 @@ int W5500Interface::init(uint8_t * mac)
     _w5500.reg_wr<uint32_t>(SIPR, 0x00000000); // local ip "0.0.0.0"
     // should set the mac address and keep the value in this class
     for (int i =0; i < 6; i++) _w5500.mac[i] = mac[i];
-    _w5500.setmac();
     _w5500.reset();  // reset chip and write mac address
+    _w5500.setmac();
     init_socks();
     return 0;
 }
@@ -218,7 +218,7 @@ int W5500Interface::IPrenew(int timeout_ms)
 int W5500Interface::connect()
 {
     if (_dhcp_enable) {
-        init(); // init default mac address
+        //init(); // init default mac address
         int err = IPrenew(15000);
         if (err < 0) return err;
     }
