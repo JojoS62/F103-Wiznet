@@ -34,7 +34,10 @@
 			"memory": "cpp",
 			"random": "cpp",
 			"optional": "cpp",
-			"mstd_memory": "cpp"
+			"mstd_memory": "cpp",
+			"mutex": "cpp",
+			"mstd_mutex": "cpp",
+			"*.tpp": "cpp"
 		}
 	}
 }

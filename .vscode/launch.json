@@ -52,7 +52,7 @@
         },
         {
             "cwd": "${workspaceRoot}",
-            "name": "debug Cortex-Debug",
+            "name": "debug COM5",
             "BMPGDBSerialPort": "//./COM5",
             "interface": "swd",
             "type": "cortex-debug",
@@ -62,7 +62,7 @@
         },
         {
             "cwd": "${workspaceRoot}",
-            "name": "release Cortex-Debug",
+            "name": "release COM5",
             "BMPGDBSerialPort": "//./COM5",
             "interface": "swd",
             "type": "cortex-debug",
@@ -72,13 +72,23 @@
         },
         {
             "cwd": "${workspaceRoot}",
-            "name": "develop Cortex-Debug",
+            "name": "develop COM5",
             "BMPGDBSerialPort": "//./COM5",
             "interface": "swd",
             "type": "cortex-debug",
             "request": "launch",
             "servertype": "bmp",
             "executable": "../../BUILD/${workspaceFolderBasename}/Develop/${workspaceFolderBasename}.elf"
+        },
+        {
+            "cwd": "${workspaceRoot}",
+            "name": "debug COM12",
+            "BMPGDBSerialPort": "//./COM12",
+            "interface": "swd",
+            "type": "cortex-debug",
+            "request": "launch",
+            "servertype": "bmp",
+            "executable": "../../BUILD/${workspaceFolderBasename}/Debug/${workspaceFolderBasename}.elf"
         }
     ]
 }

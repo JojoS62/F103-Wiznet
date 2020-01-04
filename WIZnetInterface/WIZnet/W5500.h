@@ -24,10 +24,10 @@ enum Command {
     DISCON    = 0x08,
     CLOSE     = 0x10,
     SEND      = 0x20,
-    SEND_MAC  = 0x21,
+    SEND_MAC  = 0x21, 
     SEND_KEEP = 0x22,
     RECV      = 0x40,
-
+    
 };
 
 enum Interrupt {
@@ -75,10 +75,7 @@ enum Status {
 #define Sn_RX_RD      0x0028
 #define Sn_IMR        0x002C
 
-
-
-class WIZnet_Chip
-{
+class WIZnet_Chip {
 public:
     /*
     * Constructor
@@ -96,20 +93,20 @@ public:
     * Set MAC Address to W5500
     *
     * @return true if connected, false otherwise
-    */
+    */ 
     bool setmac();
 
     /*
     * Set Network Informations (SrcIP, Netmask, Gataway)
     *
     * @return true if connected, false otherwise
-    */
+    */ 
     bool setip();
 
     /*
     * Disconnect the connection
     *
-    * @ returns true
+    * @ returns true 
     */
     bool disconnect();
 
@@ -134,14 +131,14 @@ public:
     * Set local port number
     *
     * @return true if connected, false otherwise
-    */
-    bool setLocalPort(int socket, uint16_t port);
+    */ 
+	bool setLocalPort(int socket, uint16_t port);
 
     /*
     * Reset the W5500
     */
     void reset();
-
+   
     int wait_readable(int socket, int wait_time_ms, int req_size = 0);
 
     int wait_writeable(int socket, int wait_time_ms, int req_size = 0);
@@ -177,6 +174,17 @@ public:
 
     int recv(int socket, char* buf, int len);
 
+    /*
+    * Return true if the module is using dhcp
+    *
+    * @returns true if the module is using dhcp
+    */
+    bool isDHCP() {
+        return dhcp;
+    }
+
+    bool gethostbyname(const char* host, uint32_t* ip);
+
     static WIZnet_Chip * getInstance() {
         return inst;
     };
@@ -199,12 +207,12 @@ public:
     void reg_wr(uint16_t addr, T data) {
         return reg_wr(addr, 0x04, data);
     }
-
+    
     template<typename T>
     void reg_wr(uint16_t addr, uint8_t cb, T data) {
         uint8_t buf[sizeof(T)];
         *reinterpret_cast<T*>(buf) = data;
-        for(uint i = 0; i < sizeof(buf)/2; i++) { //  Little Endian to Big Endian
+        for(int i = 0; i < (int)sizeof(buf)/2; i++) { //  Little Endian to Big Endian
             uint8_t t = buf[i];
             buf[i] = buf[sizeof(buf)-1-i];
             buf[sizeof(buf)-1-i] = t;
@@ -221,7 +229,7 @@ public:
     T reg_rd(uint16_t addr, uint8_t cb) {
         uint8_t buf[sizeof(T)];
         spi_read(addr, cb, buf, sizeof(buf));
-        for(uint i = 0; i < sizeof(buf)/2; i++) { // Big Endian to Little Endian
+        for(int i = 0; i < (int)sizeof(buf)/2; i++) { // Big Endian to Little Endian
             uint8_t t = buf[i];
             buf[i] = buf[sizeof(buf)-1-i];
             buf[sizeof(buf)-1-i] = t;
@@ -256,7 +264,7 @@ public:
     uint32_t netmask;
     uint32_t gateway;
     uint32_t dnsaddr;
-    //bool dhcp;
+    bool dhcp;
 
 protected:
     static WIZnet_Chip* inst;
@@ -270,14 +278,12 @@ protected:
     SPI* spi;
     DigitalOut cs;
     DigitalOut reset_pin;
-    bool connected_reset_pin;
 };
 
-/*
 extern uint32_t str_to_ip(const char* str);
 extern void printfBytes(char* str, uint8_t* buf, int len);
 extern void printHex(uint8_t* buf, int len);
 extern void debug_hex(uint8_t* buf, int len);
-*/
 
 } // namespace W5500
+

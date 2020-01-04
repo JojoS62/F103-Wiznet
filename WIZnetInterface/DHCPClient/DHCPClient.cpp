@@ -196,9 +196,11 @@ int DHCPClient::setup(NetworkStack *ns, uint8_t mac_addr[6], int timeout_ms)
     int send_size;
     while(!exit_flag) {
         switch(seq) {
-            case 0:
-                m_retry = 0;
-                seq++;
+            case 0: 
+                {
+                    m_retry = 0;
+                    seq++;
+                }
                 break;
             case 1:
                 {
@@ -215,7 +217,7 @@ int DHCPClient::setup(NetworkStack *ns, uint8_t mac_addr[6], int timeout_ms)
                 break;
             case 2:
                 {
-                    callback(); 
+                    callback();
                     if (m_interval.read_ms() > interval_ms) {
                         DBG("m_retry: %d\n", m_retry);
                         if (++m_retry >= (timeout_ms/interval_ms)) {

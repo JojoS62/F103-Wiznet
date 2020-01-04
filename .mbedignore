@@ -3,7 +3,6 @@ MQTTPacket/*
 WebsocketClient/*
 TFTPServer/*
 util/cmdb.*
-Adafruit-GFX-Library/*
 Chart/*
 lvgl/*
 Display/*

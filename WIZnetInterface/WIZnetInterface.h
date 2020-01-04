@@ -1,8 +1,8 @@
 /**
   ******************************************************************************
-  * @file    W5500Interface.h
-  * @author  Bongjun Hur (modified version from Sergei G (https://os.mbed.com/users/sgnezdov/))
-  * @brief   Header file of the NetworkStack for the W5500 Device
+  * @file    WIZnetInterface.h
+  * @author  Justin Kim (modified version from Sergei G (https://os.mbed.com/users/sgnezdov/))
+  * @brief   Header file of the NetworkStack for the WIZnet Ethernet Device
   ******************************************************************************
   * @attention
   *
@@ -13,45 +13,28 @@
   * FROM THE CONTENT OF SUCH FIRMWARE AND/OR THE USE MADE BY CUSTOMERS OF THE
   * CODING INFORMATION CONTAINED HEREIN IN CONNECTION WITH THEIR PRODUCTS.
   *
-  * <h2><center>&copy; COPYRIGHT 2017,2018 WIZnet Co.,Ltd.</center></h2>
+  * <h2><center>&copy; COPYRIGHT 2019 WIZnet Co.,Ltd.</center></h2>
   ******************************************************************************
   */
 
-#ifndef W5500_INTERFACE_H
-#define W5500_INTERFACE_H
+#ifndef WIZNET_INTERFACE_H
+#define WIZNET_INTERFACE_H
 
 #include "mbed.h"
-#include "W5500.h"
-//#include "rtos.h"
-#include "PinNames.h"
+#include "wiznet.h"
 #include "DHCPClient.h"
 #include "DNSClient.h"
+
+#include "WiFiInterface.h"
  
 using namespace W5500;
 
-// Arduino pin defaults for convenience
-#if !defined(W5500_SPI_MOSI)
-#define W5500_SPI_MOSI   D11
-#endif
-#if !defined(W5500_SPI_MISO)
-#define W5500_SPI_MISO   D12
-#endif
-#if !defined(W5500_SPI_SCLK)
-#define W5500_SPI_SCLK   D13
-#endif
-#if !defined(W5500_SPI_CS)
-#define W5500_SPI_CS     D10
-#endif
-#if !defined(W5500_SPI_RST)
-#define W5500_SPI_RST    NC
-#endif
 
-
-/** w5500_socket struct
- *  W5500 socket 
+/** wiznet_socket struct
+ *  Wiznet socket 
  */
  
-struct w5500_socket {
+struct wiznet_socket {
    int   fd;
    nsapi_protocol_t proto;
    bool  connected;
@@ -63,12 +46,15 @@ struct w5500_socket {
  *  Implementation of the NetworkStack for the W5500
  */
 
-class W5500Interface : public NetworkStack, public EthInterface
+class WIZnetInterface : public NetworkStack, public EthInterface
 {
 public:
+
+#if (not defined TARGET_WIZwiki_W7500) && (not defined TARGET_WIZwiki_W7500P) && (not defined TARGET_WIZwiki_W7500ECO)
     //W5500Interface(SPI* spi, PinName cs, PinName reset);
-    W5500Interface(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName reset);
-    
+    WIZnetInterface(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName reset);
+#endif
+
     int init();
     int init(uint8_t * mac);
     int init(const char* ip, const char* mask, const char* gateway);
@@ -111,29 +97,6 @@ public:
      */
     virtual const char *get_mac_address();
     
-    /** Set a static IP address
-     *
-     *  Configures this network interface to use a static IP address.
-     *  Implicitly disables DHCP, which can be enabled in set_dhcp.
-     *  Requires that the network is disconnected.
-     *
-     *  @param ip_address Null-terminated representation of the local IP address
-     *  @param netmask    Null-terminated representation of the local network mask
-     *  @param gateway    Null-terminated representation of the local gateway
-     *  @return           0 on success, negative error code on failure
-     */
-    virtual nsapi_error_t set_network(const char *ip_address, const char *netmask, const char *gateway);
-
-    /** Enable or disable DHCP on the network
-     *
-     *  Enables DHCP on connecting the network. Defaults to enabled unless
-     *  a static IP address has been assigned. Requires that the network is
-     *  disconnected.
-     *
-     *  @param dhcp     True to enable DHCP
-     *  @return         0 on success, negative error code on failure
-     */
-    virtual nsapi_error_t set_dhcp(bool dhcp);
 
 	bool setDnsServerIP(const char* ip_address);
 
@@ -327,31 +290,34 @@ protected:
     virtual NetworkStack* get_stack() {return this;}
 
 private:
-	WIZnet_Chip _w5500;
+	WIZnet_Chip _wiznet;
 
-    char ip_string[NSAPI_IPv4_SIZE];
-    char netmask_string[NSAPI_IPv4_SIZE];
-    char gateway_string[NSAPI_IPv4_SIZE];
-    char mac_string[NSAPI_MAC_SIZE];
+	Thread thread_read_socket;
+
+    char ip_string[20];
+    char netmask_string[20];
+    char gateway_string[20];
+    char mac_string[20];
     bool ip_set;    
     
     int listen_port;
     
     //void signal_event(nsapi_socket_t handle);
-    //void event();
+    void event();
     
-    //w5500 socket management
-    struct w5500_socket w5500_sockets[MAX_SOCK_NUM];
-    w5500_socket* get_sock(int fd);
+    //wiznet socket management
+    struct wiznet_socket wiznet_sockets[MAX_SOCK_NUM];
+    wiznet_socket* get_sock(int fd);
     void init_socks();
 
 	DHCPClient dhcp;
 	bool _dhcp_enable;
 	DNSClient  dns;
-/*	
-	Thread *_daemon;
-    void daemon();
-*/
+
+	virtual void socket_check_read();
+
+//	Thread *_daemon;
+//    void daemon();
 
 };
 

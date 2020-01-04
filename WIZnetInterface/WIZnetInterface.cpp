@@ -1,9 +1,8 @@
-
 /**
   ******************************************************************************
-  * @file    W5500Interface.h
-  * @author  Bongjun Hur (modified version from Sergei G (https://os.mbed.com/users/sgnezdov/))
-  * @brief   Implementation file of the NetworkStack for the W5500 Device
+  * @file    WIZnetInterface.h
+  * @author  Justin Kim (modified version from Sergei G (https://os.mbed.com/users/sgnezdov/))
+  * @brief   Implementation file of the NetworkStack for the WIZnet Ethernet Device
   ******************************************************************************
   * @attention
   *
@@ -14,26 +13,26 @@
   * FROM THE CONTENT OF SUCH FIRMWARE AND/OR THE USE MADE BY CUSTOMERS OF THE
   * CODING INFORMATION CONTAINED HEREIN IN CONNECTION WITH THEIR PRODUCTS.
   *
-  * <h2><center>&copy; COPYRIGHT 2017 WIZnet Co.,Ltd.</center></h2>
+  * <h2><center>&copy; COPYRIGHT 2019 WIZnet Co.,Ltd.</center></h2>
   ******************************************************************************
   */
 
 #include "mbed.h"
-#include "W5500Interface.h"
+#include "WIZnetInterface.h"
 
-static uint8_t W5500_DEFAULT_TESTMAC[6] = {0x00, 0x08, 0xdc, 0x45, 0x56, 0x67};
 static int udp_local_port = 0;
 
-#define SKT(h) ((w5500_socket*)h)
-#define w5500_WAIT_TIMEOUT   1500
-#define w5500_ACCEPT_TIMEOUT 300000 //5 mins timeout, retrun NSAPI_ERROR_WOULD_BLOCK if there is no connection during 5 mins
+#define SKT(h) ((wiznet_socket*)h)
+#define WIZNET_WAIT_TIMEOUT   400
+#define WIZNET_ACCEPT_TIMEOUT 300000 //5 mins timeout, retrun NSAPI_ERROR_WOULD_BLOCK if there is no connection during 5 mins
 
-#define w5500_INTF_DBG 0
+#define WIZNET_INTF_DBG 0
 
-#if w5500_INTF_DBG
+#if WIZNET_INTF_DBG
 #define DBG(...) do{debug("[%s:%d]", __PRETTY_FUNCTION__,__LINE__);debug(__VA_ARGS__);} while(0);
 #else
 #define DBG(...) while(0);
+#define INFO(...) do{debug("[%s:%d]", __PRETTY_FUNCTION__,__LINE__);debug(__VA_ARGS__);} while(0);
 #endif
 
 /**
@@ -44,14 +43,17 @@ static int udp_local_port = 0;
  * @retval
  */
 /* Interface implementation */
-
-W5500Interface::W5500Interface(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName reset) :
-    _w5500(mosi, miso, sclk, cs, reset)
+#if (not defined TARGET_WIZwiki_W7500) && (not defined TARGET_WIZwiki_W7500P) && (not defined TARGET_WIZwiki_W7500ECO)
+WIZnetInterface::WIZnetInterface(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName reset) :
+    _wiznet(mosi, miso, sclk, cs, reset)
 {
     ip_set = false;
     _dhcp_enable = true;
-}
 
+    //_w5500.attach(this, &W5500Interface::event);
+    thread_read_socket.start(callback(this, &WIZnetInterface::socket_check_read));
+}
+#endif
 /*
 W5500Interface::W5500Interface(SPI* spi, PinName cs, PinName reset) :
     _w5500(spi, cs, reset)
@@ -60,29 +62,29 @@ W5500Interface::W5500Interface(SPI* spi, PinName cs, PinName reset) :
 }
 */
 
-w5500_socket* W5500Interface::get_sock(int fd)
+wiznet_socket* WIZnetInterface::get_sock(int fd)
 {
     for (int i=0; i<MAX_SOCK_NUM ; i++) {
-        if (w5500_sockets[i].fd == -1) {
-            w5500_sockets[i].fd            = fd;
-            w5500_sockets[i].proto         = NSAPI_TCP;
-            w5500_sockets[i].connected     = false;
-            w5500_sockets[i].callbackFn    = NULL;
-            w5500_sockets[i].callback_data = NULL;
-            return &w5500_sockets[i];
+        if (wiznet_sockets[i].fd == -1) {
+            wiznet_sockets[i].fd            = fd;
+            wiznet_sockets[i].proto         = NSAPI_TCP;
+            wiznet_sockets[i].connected     = false;
+            wiznet_sockets[i].callbackFn    = NULL;
+            wiznet_sockets[i].callback_data = NULL;
+            return &wiznet_sockets[i];
         }
     }
     return NULL;
 }
 
-void W5500Interface::init_socks()
+void WIZnetInterface::init_socks()
 {
     for (int i=0; i<MAX_SOCK_NUM ; i++) {
-        w5500_sockets[i].fd            = -1;
-        w5500_sockets[i].proto         = NSAPI_TCP;
-        w5500_sockets[i].connected     = false;
-        w5500_sockets[i].callbackFn    = NULL;
-        w5500_sockets[i].callback_data = NULL;
+        wiznet_sockets[i].fd            = -1;
+        wiznet_sockets[i].proto         = NSAPI_TCP;
+        wiznet_sockets[i].connected     = false;
+        wiznet_sockets[i].callbackFn    = NULL;
+        wiznet_sockets[i].callback_data = NULL;
     }
 
     dns.setup(get_stack());
@@ -91,7 +93,7 @@ void W5500Interface::init_socks()
     //_daemon->start(callback(this, &W5500Interface::daemon));
 }
 
-uint32_t W5500Interface:: str_to_ip(const char* str)
+uint32_t WIZnetInterface:: str_to_ip(const char* str)
 {
     uint32_t ip = 0;
     char* p = (char*)str;
@@ -107,92 +109,104 @@ uint32_t W5500Interface:: str_to_ip(const char* str)
     return ip;
 }
 
-int W5500Interface::init()
+int WIZnetInterface::init()
 {
     _dhcp_enable = true;
-    _w5500.reg_wr<uint32_t>(SIPR, 0x00000000); // local ip "0.0.0.0"
     //_w5500.reg_wr<uint8_t>(SIMR, 0xFF); //
-    for (int i =0; i < 6; i++) _w5500.mac[i] = W5500_DEFAULT_TESTMAC[i];
-    _w5500.setmac();
-    _w5500.reset();
+    _wiznet.reset();
+
+    _wiznet.reg_wr<uint32_t>(SIPR, 0x00000000); // local ip "0.0.0.0"
+    
     init_socks();
+    
     return 0;
 }
 
-int W5500Interface::init(uint8_t * mac)
+int WIZnetInterface::init(uint8_t * mac)
 {
     _dhcp_enable = true;
-    _w5500.reg_wr<uint32_t>(SIPR, 0x00000000); // local ip "0.0.0.0"
-    // should set the mac address and keep the value in this class
-    for (int i =0; i < 6; i++) _w5500.mac[i] = mac[i];
-    _w5500.reset();  // reset chip and write mac address
-    _w5500.setmac();
+
+    _wiznet.reset();  // reset chip
+
+    _wiznet.reg_wr<uint32_t>(SIPR, 0x00000000); // local ip "0.0.0.0"
+    for (int i =0; i < 6; i++) _wiznet.mac[i] = mac[i];
+    _wiznet.setmac();
+
     init_socks();
+    
     return 0;
 }
 
 // add this function, because sometimes no needed MAC address in init calling.
-int W5500Interface::init(const char* ip, const char* mask, const char* gateway)
+int WIZnetInterface::init(const char* ip, const char* mask, const char* gateway)
 {
     _dhcp_enable = false;
-
-
-    _w5500.ip = str_to_ip(ip);
+    
+    _wiznet.ip = str_to_ip(ip);
     strcpy(ip_string, ip);
     ip_set = true;
-    _w5500.netmask = str_to_ip(mask);
-    _w5500.gateway = str_to_ip(gateway);
-    _w5500.reset();
+
+    _wiznet.netmask = str_to_ip(mask);
+    _wiznet.gateway = str_to_ip(gateway);
+    
+    _wiznet.reset();
 
     // @Jul. 8. 2014 add code. should be called to write chip.
-    _w5500.setip();
+    _wiznet.setip();
+    ip_set = true;
+
+    
     init_socks();
 
     return 0;
 }
 
-int W5500Interface::init(uint8_t * mac, const char* ip, const char* mask, const char* gateway)
+int WIZnetInterface::init(uint8_t * mac, const char* ip, const char* mask, const char* gateway)
 {
     _dhcp_enable = false;
     //
-    for (int i =0; i < 6; i++) _w5500.mac[i] = mac[i];
+    for (int i =0; i < 6; i++) _wiznet.mac[i] = mac[i];
     //
-    _w5500.ip = str_to_ip(ip);
+    _wiznet.ip = str_to_ip(ip);
     strcpy(ip_string, ip);
     ip_set = true;
-    _w5500.netmask = str_to_ip(mask);
-    _w5500.gateway = str_to_ip(gateway);
-    _w5500.reset();
+
+    _wiznet.netmask = str_to_ip(mask);
+    _wiznet.gateway = str_to_ip(gateway);
+    
+    _wiznet.reset();
 
     // @Jul. 8. 2014 add code. should be called to write chip.
-    _w5500.setmac();
-    _w5500.setip();
+    _wiznet.setmac();
+    _wiznet.setip();
+    ip_set = true;
+
     init_socks();
 
     return 0;
 }
 
-/*
-void W5500Interface::daemon () {
-    for (;;) {
+
+void WIZnetInterface::socket_check_read()
+{
+    while (1) {
         for (int i=0; i<MAX_SOCK_NUM ; i++) {
-            if (w5500_sockets[i].fd > 0 && w5500_sockets[i].callback) {
-                int size = _w5500.sreg<uint16_t>(w5500_sockets[i].fd, Sn_RX_RSR);
+            if (wiznet_sockets[i].fd >= 0 && wiznet_sockets[i].callbackFn) {
+                int size = _wiznet.sreg<uint16_t>(wiznet_sockets[i].fd, Sn_RX_RSR);
                 if (size > 0) {
-                    led1 = !led1;
-                    w5500_sockets[i].callback(w5500_sockets[i].callback_data);
+                    //led1 = !led1;
+                    wiznet_sockets[i].callbackFn(wiznet_sockets[i].callback_data);
                 }
             }
         }
-        wait(0.2);
+        ThisThread::sleep_for(5);
     }
 }
-*/
 
-int W5500Interface::IPrenew(int timeout_ms)
+int WIZnetInterface::IPrenew(int timeout_ms)
 {
     DBG("[EasyConnect] DHCP start\n");
-    int err = dhcp.setup(get_stack(), _w5500.mac, timeout_ms);
+    int err = dhcp.setup(get_stack(), _wiznet.mac, timeout_ms);
     if (err == (-1)) {
         DBG("[EasyConnect] Timeout.\n");
         return NSAPI_ERROR_DHCP_FAILURE;
@@ -200,87 +214,84 @@ int W5500Interface::IPrenew(int timeout_ms)
     DBG("[EasyConnect] DHCP completed\n");
     DBG("[EasyConnect] Connected, IP: %d.%d.%d.%d\r\n", dhcp.yiaddr[0], dhcp.yiaddr[1], dhcp.yiaddr[2], dhcp.yiaddr[3]);
 
-    char ip[24], gateway[24], netmask[24], dnsaddr[24];
-    sprintf(ip,      "%d.%d.%d.%d", dhcp.yiaddr[0],  dhcp.yiaddr[1],  dhcp.yiaddr[2],  dhcp.yiaddr[3]);
-    sprintf(gateway, "%d.%d.%d.%d", dhcp.gateway[0], dhcp.gateway[1], dhcp.gateway[2], dhcp.gateway[3]);
-    sprintf(netmask, "%d.%d.%d.%d", dhcp.netmask[0], dhcp.netmask[1], dhcp.netmask[2], dhcp.netmask[3]);
-    sprintf(dnsaddr, "%d.%d.%d.%d", dhcp.dnsaddr[0], dhcp.dnsaddr[1], dhcp.dnsaddr[2], dhcp.dnsaddr[3]);
-
-    init(ip, netmask, gateway);
-    setDnsServerIP(dnsaddr);
-
-    _dhcp_enable = true; // because this value was changed in init(ip, netmask, gateway).
+    _wiznet.ip      = (dhcp.yiaddr[0] <<24) | (dhcp.yiaddr[1] <<16) | (dhcp.yiaddr[2] <<8) | dhcp.yiaddr[3];
+    _wiznet.gateway = (dhcp.gateway[0]<<24) | (dhcp.gateway[1]<<16) | (dhcp.gateway[2]<<8) | dhcp.gateway[3];
+    _wiznet.netmask = (dhcp.netmask[0]<<24) | (dhcp.netmask[1]<<16) | (dhcp.netmask[2]<<8) | dhcp.netmask[3];
+    _wiznet.dnsaddr = (dhcp.dnsaddr[0]<<24) | (dhcp.dnsaddr[1]<<16) | (dhcp.dnsaddr[2]<<8) | dhcp.dnsaddr[3];
 
     return 0;
 }
 
 
-int W5500Interface::connect()
+int WIZnetInterface::connect()
 {
     if (_dhcp_enable) {
-        //init(); // init default mac address
-        int err = IPrenew(15000);
-        if (err < 0) return err;
+        int err = IPrenew();
+		if (err < 0) return err;
     }
 
-    if (_w5500.setip() == false) return NSAPI_ERROR_DHCP_FAILURE;
+    if (_wiznet.setip() == false) 
+        return NSAPI_ERROR_DHCP_FAILURE;
+
+    ip_set = true;
+
     return 0;
 }
 
-bool W5500Interface::setDnsServerIP(const char* ip_address)
+bool WIZnetInterface::setDnsServerIP(const char* ip_address)
 {
     return dns.set_server(ip_address);
 }
 
-int W5500Interface::disconnect()
+int WIZnetInterface::disconnect()
 {
-    _w5500.disconnect();
+    _wiznet.disconnect();
     return 0;
 }
 
-const char *W5500Interface::get_ip_address()
+const char *WIZnetInterface::get_ip_address()
 {
-    uint32_t ip = _w5500.reg_rd<uint32_t>(SIPR);
-    snprintf(ip_string, sizeof(ip_string), "%ld.%ld.%ld.%ld", (ip>>24)&0xff, (ip>>16)&0xff, (ip>>8)&0xff, ip&0xff);
+    uint32_t ip = _wiznet.reg_rd<uint32_t>(SIPR);
+    snprintf(ip_string, sizeof(ip_string), "%d.%d.%d.%d", (int)((ip>>24)&0xff), (int)((ip>>16)&0xff), (int)((ip>>8)&0xff), (int)(ip&0xff));
     return ip_string;
 }
 
-const char *W5500Interface::get_netmask()
+const char *WIZnetInterface::get_netmask()
 {
-    uint32_t netmask = _w5500.reg_rd<uint32_t>(SUBR);
-    snprintf(netmask_string, sizeof(netmask_string), "%ld.%ld.%ld.%ld", (netmask>>24)&0xff, (netmask>>16)&0xff, (netmask>>8)&0xff, netmask&0xff);
+    uint32_t netmask = _wiznet.reg_rd<uint32_t>(SUBR);
+    snprintf(netmask_string, sizeof(netmask_string), "%d.%d.%d.%d", (int)((netmask>>24)&0xff), (int)((netmask>>16)&0xff), (int)((netmask>>8)&0xff), (int)(netmask&0xff));
     return netmask_string;
 }
 
-const char *W5500Interface::get_gateway()
+const char *WIZnetInterface::get_gateway()
 {
-    uint32_t gateway = _w5500.reg_rd<uint32_t>(GAR);
-    snprintf(gateway_string, sizeof(gateway_string), "%ld.%ld.%ld.%ld", (gateway>>24)&0xff, (gateway>>16)&0xff, (gateway>>8)&0xff, gateway&0xff);
+    uint32_t gateway = _wiznet.reg_rd<uint32_t>(GAR);
+    snprintf(gateway_string, sizeof(gateway_string), "%d.%d.%d.%d", (int)((gateway>>24)&0xff), (int)((gateway>>16)&0xff), (int)((gateway>>8)&0xff), (int)(gateway&0xff));
     return gateway_string;
 }
 
-const char *W5500Interface::get_mac_address()
+const char *WIZnetInterface::get_mac_address()
 {
     uint8_t mac[6];
-    _w5500.reg_rd_mac(SHAR, mac);
+    _wiznet.reg_rd_mac(SHAR, mac);
     snprintf(mac_string, sizeof(mac_string), "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
     return mac_string;
 }
 
-void W5500Interface::get_mac(uint8_t mac[6])
+void WIZnetInterface::get_mac(uint8_t mac[6])
 {
-    _w5500.reg_rd_mac(SHAR, mac);
+    _wiznet.reg_rd_mac(SHAR, mac);
 }
 
-nsapi_error_t W5500Interface::socket_open(nsapi_socket_t *handle, nsapi_protocol_t proto)
+nsapi_error_t WIZnetInterface::socket_open(nsapi_socket_t *handle, nsapi_protocol_t proto)
 {
     //a socket is created the same way regardless of the protocol
-    int sock_fd = _w5500.new_socket();
+    int sock_fd = _wiznet.new_socket();
     if (sock_fd < 0) {
         return NSAPI_ERROR_NO_SOCKET;
     }
 
-    w5500_socket *h = get_sock(sock_fd);
+    wiznet_socket *h = get_sock(sock_fd);
 
     if (!h) {
         return NSAPI_ERROR_NO_SOCKET;
@@ -297,28 +308,29 @@ nsapi_error_t W5500Interface::socket_open(nsapi_socket_t *handle, nsapi_protocol
     return 0;
 }
 
-/*
-void W5500Interface::signal_event(nsapi_socket_t handle)
-{
-    DBG("fd: %d\n", SKT(handle)->fd);
-    if (SKT(handle)->callback != NULL) {
-        SKT(handle)->callback(SKT(handle)->callback_data);
-    }
-}
-*/
+//void W5500Interface::signal_event(nsapi_socket_t handle)
+//{
+////    DBG("fd: %d\n", SKT(handle)->fd);
+////    if (SKT(handle)->callback != NULL) {
+////        SKT(handle)->callback(SKT(handle)->callback_data);
+////    }
+//	if (handle == NULL) return;
+//    w5500_socket *socket = (w5500_socket *)handle;
+//    w5500_sockets[socket->fd].callback(w5500_sockets[socket->fd].callback_data);
+//}
 
-nsapi_error_t W5500Interface::socket_close(nsapi_socket_t handle)
+nsapi_error_t WIZnetInterface::socket_close(nsapi_socket_t handle)
 {
     if (handle == NULL) return 0;
     DBG("fd: %d\n", SKT(handle)->fd);
-    _w5500.close(SKT(handle)->fd);
+    _wiznet.close(SKT(handle)->fd);
 
     SKT(handle)->fd = -1;
 
     return 0;
 }
 
-nsapi_error_t W5500Interface::socket_bind(nsapi_socket_t handle, const SocketAddress &address)
+nsapi_error_t WIZnetInterface::socket_bind(nsapi_socket_t handle, const SocketAddress &address)
 {
     if ((int)handle < 0) {
         return NSAPI_ERROR_DEVICE_ERROR;
@@ -329,14 +341,14 @@ nsapi_error_t W5500Interface::socket_bind(nsapi_socket_t handle, const SocketAdd
         case NSAPI_UDP:
             // set local port
             if (address.get_port() != 0) {
-                _w5500.setLocalPort( SKT(handle)->fd, address.get_port() );
+                _wiznet.setLocalPort( SKT(handle)->fd, address.get_port() );
             } else {
                 udp_local_port++;
-                _w5500.setLocalPort( SKT(handle)->fd, udp_local_port );
+                _wiznet.setLocalPort( SKT(handle)->fd, udp_local_port );
             }
             // set udp protocol
-            _w5500.setProtocol(SKT(handle)->fd, UDP);
-            _w5500.scmd(SKT(handle)->fd, OPEN);
+            _wiznet.setProtocol(SKT(handle)->fd, UDP);
+            _wiznet.scmd(SKT(handle)->fd, OPEN);
             /*
                         uint8_t tmpSn_SR;
                 		tmpSn_SR = _w5500.sreg<uint8_t>(SKT(handle)->fd, Sn_SR);
@@ -346,20 +358,22 @@ nsapi_error_t W5500Interface::socket_bind(nsapi_socket_t handle, const SocketAdd
         case NSAPI_TCP:
             listen_port = address.get_port();
             // set TCP protocol
-            _w5500.setProtocol(SKT(handle)->fd, TCP);
+            _wiznet.setProtocol(SKT(handle)->fd, TCP);
             // set local port
-            _w5500.setLocalPort( SKT(handle)->fd, address.get_port() );
+            _wiznet.setLocalPort( SKT(handle)->fd, address.get_port() );
             // connect the network
-            _w5500.scmd(SKT(handle)->fd, OPEN);
+            _wiznet.scmd(SKT(handle)->fd, OPEN);
             return 0;
         case NSAPI_ICMP:
+            // should not arive here
+            debug("unhandled ICMP\n");
             return 0;
     }
 
     return NSAPI_ERROR_DEVICE_ERROR;
 }
 
-nsapi_error_t W5500Interface::socket_listen(nsapi_socket_t handle, int backlog)
+nsapi_error_t WIZnetInterface::socket_listen(nsapi_socket_t handle, int backlog)
 {
     DBG("fd: %d\n", SKT(handle)->fd);
     if (SKT(handle)->fd < 0) {
@@ -369,14 +383,15 @@ nsapi_error_t W5500Interface::socket_listen(nsapi_socket_t handle, int backlog)
             return NSAPI_ERROR_NO_SOCKET;
         }
     */
-    _w5500.scmd(SKT(handle)->fd, LISTEN);
+    _wiznet.scmd(SKT(handle)->fd, LISTEN);
     return 0;
 }
 
-nsapi_size_or_error_t W5500Interface::socket_connect(nsapi_socket_t handle, const SocketAddress &address)
+nsapi_size_or_error_t WIZnetInterface::socket_connect(nsapi_socket_t handle, const SocketAddress &address)
 {
     DBG("fd: %d\n", SKT(handle)->fd);
     //check for a valid socket
+
     if (SKT(handle)->fd < 0) {
         return NSAPI_ERROR_NO_SOCKET;
     }
@@ -385,7 +400,7 @@ nsapi_size_or_error_t W5500Interface::socket_connect(nsapi_socket_t handle, cons
     SKT(handle)->connected = false;
 
     //try to connect
-    if (!_w5500.connect(SKT(handle)->fd, address.get_ip_address(), address.get_port(), w5500_WAIT_TIMEOUT)) {
+    if (!_wiznet.connect(SKT(handle)->fd, address.get_ip_address(), address.get_port(), WIZNET_WAIT_TIMEOUT)) {
         return -1;
     }
 
@@ -395,11 +410,10 @@ nsapi_size_or_error_t W5500Interface::socket_connect(nsapi_socket_t handle, cons
     return 0;
 }
 
-nsapi_error_t W5500Interface::socket_accept(nsapi_socket_t server, nsapi_socket_t *handle, SocketAddress *address)
+nsapi_error_t WIZnetInterface::socket_accept(nsapi_socket_t server, nsapi_socket_t *handle, SocketAddress *address)
 {
     SocketAddress _addr;
 
-    DBG("fd: %d\n", SKT(handle)->fd);
     if (SKT(server)->fd < 0) {
         return NSAPI_ERROR_NO_SOCKET;
     }
@@ -411,11 +425,14 @@ nsapi_error_t W5500Interface::socket_accept(nsapi_socket_t server, nsapi_socket_
     t.start();
 
     while(1) {
-        if (t.read_ms() > w5500_ACCEPT_TIMEOUT) {
-            DBG("W5500Interface::socket_accept, timed out\r\n");
+        if (t.read_ms() > WIZNET_ACCEPT_TIMEOUT) {
+            debug("WIZnetInterface::socket_accept, timed out\r\n");
             return NSAPI_ERROR_WOULD_BLOCK;
         }
-        if (_w5500.is_connected(SKT(server)->fd)) break;
+        if (_wiznet.is_connected(SKT(server)->fd)) {
+            break;
+        }
+        ThisThread::sleep_for(10);
     }
 
     //get socket for the connection
@@ -431,10 +448,10 @@ nsapi_error_t W5500Interface::socket_accept(nsapi_socket_t server, nsapi_socket_
     SKT(*handle)->connected = true;
 
     if (address) {
-        uint32_t ip = _w5500.sreg<uint32_t>(SKT(*handle)->fd, Sn_DIPR);
+        uint32_t ip = _wiznet.sreg<uint32_t>(SKT(*handle)->fd, Sn_DIPR);
         char host[17];
-        snprintf(host, sizeof(host), "%ld.%ld.%ld.%ld", (ip>>24)&0xff, (ip>>16)&0xff, (ip>>8)&0xff, ip&0xff);
-        int port = _w5500.sreg<uint16_t>(SKT(*handle)->fd, Sn_DPORT);
+        snprintf(host, sizeof(host), "%d.%d.%d.%d", (int)((ip>>24)&0xff), (int)((ip>>16)&0xff), (int)((ip>>8)&0xff), (int)(ip&0xff));
+        int port = _wiznet.sreg<uint16_t>(SKT(*handle)->fd, Sn_DPORT);
 
         _addr.set_ip_address(host);
         _addr.set_port(port);
@@ -443,7 +460,7 @@ nsapi_error_t W5500Interface::socket_accept(nsapi_socket_t server, nsapi_socket_
 
 
     //create a new tcp socket for the server
-    SKT(server)->fd = _w5500.new_socket();
+    SKT(server)->fd = _wiznet.new_socket();
     if (SKT(server)->fd < 0) {
         error("No more sockets for listening");
         //return NSAPI_ERROR_NO_SOCKET;
@@ -473,19 +490,22 @@ nsapi_error_t W5500Interface::socket_accept(nsapi_socket_t server, nsapi_socket_
     return 0;
 }
 
-nsapi_size_or_error_t W5500Interface::socket_send(nsapi_socket_t handle, const void *data, nsapi_size_t size)
+nsapi_size_or_error_t WIZnetInterface::socket_send(nsapi_socket_t handle, const void *data, nsapi_size_t size)
 {
     DBG("fd: %d\n", SKT(handle)->fd);
+    //INFO("fd: %d\n", SKT(handle)->fd);
+
     int writtenLen = 0;
+    int ret;
     while (writtenLen < (int)size) {
-        int _size =  _w5500.wait_writeable(SKT(handle)->fd, w5500_WAIT_TIMEOUT);
+        int _size =  _wiznet.wait_writeable(SKT(handle)->fd, WIZNET_WAIT_TIMEOUT);
         if (_size < 0) {
             return NSAPI_ERROR_WOULD_BLOCK;
         }
         if (_size > ((int)size-writtenLen)) {
             _size = ((int)size-writtenLen);
         }
-        int ret = _w5500.send(SKT(handle)->fd, (char*)data, (int)_size);
+        ret = _wiznet.send(SKT(handle)->fd, ((const char*)data+writtenLen), (int)_size);
         if (ret < 0) {
             DBG("returning error -1\n");
             return -1;
@@ -495,30 +515,57 @@ nsapi_size_or_error_t W5500Interface::socket_send(nsapi_socket_t handle, const v
     return writtenLen;
 }
 
-nsapi_size_or_error_t W5500Interface::socket_recv(nsapi_socket_t handle, void *data, nsapi_size_t size)
+nsapi_size_or_error_t WIZnetInterface::socket_recv(nsapi_socket_t handle, void *data, nsapi_size_t size)
 {
+    int recved_size = 0;
+    //int idx;
+    int _size;
+    nsapi_size_or_error_t err;
+
     DBG("fd: %d\n", SKT(handle)->fd);
+    //INFO("fd: %d\n", SKT(handle)->fd);
     // add to cover exception.
     if ((SKT(handle)->fd < 0) || !SKT(handle)->connected) {
         return -1;
     }
     DBG("fd: connected is %d\n", SKT(handle)->connected);
 
-    int _size = _w5500.wait_readable(SKT(handle)->fd, w5500_WAIT_TIMEOUT);
-    DBG("fd: size is %d\n", _size);
+     while(1) {
+        _size = _wiznet.wait_readable(SKT(handle)->fd, WIZNET_WAIT_TIMEOUT);
+        DBG("fd: _size %d\n", _size);
 
-    if (_size < 0) {
-        return NSAPI_ERROR_WOULD_BLOCK;
+        if (_size < 0) {
+            if(recved_size > 0){
+                err = recved_size;
+                //INFO("recved_size : %d\n",recved_size);
+                break;
+            }
+            return NSAPI_ERROR_WOULD_BLOCK;
+        }
+
+        if (_size > ((int)size - recved_size)) {
+            _size = ((int)size - recved_size);
+        }
+
+        if (_size == 0 && recved_size !=0 ){
+            return recved_size;
+        }
+
+
+        err = _wiznet.recv(SKT(handle)->fd, ((char*)data + recved_size), (int)_size);
+//	    printf("[TEST 400] : %d\r\n",recved_size);
+//	    for(idx=0; idx<16; idx++)
+//	    {
+//	        printf(" %02x",((uint8_t*)data)[idx+recved_size]);
+//	    }
+//	    printf("\r\n");
+
+        DBG("rv: %d\n", err);
+        //INFO("rv: %d\n",err);
+        recved_size += _size;
     }
 
-    if (_size > (int)size) {
-        _size = (int)size;
-    }
-
-    nsapi_size_or_error_t err = _w5500.recv(SKT(handle)->fd, (char*)data, (int)_size);
-    DBG("rv: %d\n", err);
-
-#if w5500_INTF_DBG
+#if WIZNET_INTF_DBG
     if (err > 0) {
         debug("[socket_recv] buffer:");
         for(int i = 0; i < err; i++) {
@@ -535,11 +582,11 @@ nsapi_size_or_error_t W5500Interface::socket_recv(nsapi_socket_t handle, void *d
     return err;
 }
 
-nsapi_size_or_error_t W5500Interface::socket_sendto(nsapi_socket_t handle, const SocketAddress &address,
+nsapi_size_or_error_t WIZnetInterface::socket_sendto(nsapi_socket_t handle, const SocketAddress &address,
         const void *data, nsapi_size_t size)
 {
     DBG("fd: %d, ip: %s:%d\n", SKT(handle)->fd, address.get_ip_address(), address.get_port());
-    if (_w5500.is_closed(SKT(handle)->fd)) {
+    if (_wiznet.is_closed(SKT(handle)->fd)) {
         nsapi_error_t err = socket_bind(handle, address);
         if (err < 0 ) {
             DBG("failed to bind socket: %d\n", err);
@@ -547,21 +594,21 @@ nsapi_size_or_error_t W5500Interface::socket_sendto(nsapi_socket_t handle, const
         }
     }
     //compare with original: int size = eth->wait_writeable(_sock_fd, _blocking ? -1 : _timeout, length-1);
-    int len = _w5500.wait_writeable(SKT(handle)->fd, w5500_WAIT_TIMEOUT, size-1);
+    int len = _wiznet.wait_writeable(SKT(handle)->fd, WIZNET_WAIT_TIMEOUT, size-1);
     if (len < 0) {
         DBG("error: NSAPI_ERROR_WOULD_BLOCK\n");
         return NSAPI_ERROR_WOULD_BLOCK;;
     }
 
     // set remote host
-    _w5500.sreg_ip(SKT(handle)->fd, Sn_DIPR, address.get_ip_address());
+    _wiznet.sreg_ip(SKT(handle)->fd, Sn_DIPR, address.get_ip_address());
     // set remote port
-    _w5500.sreg<uint16_t>(SKT(handle)->fd, Sn_DPORT, address.get_port());
+    _wiznet.sreg<uint16_t>(SKT(handle)->fd, Sn_DPORT, address.get_port());
 
-    nsapi_size_or_error_t err = _w5500.send(SKT(handle)->fd, (const char*)data, size);
+    nsapi_size_or_error_t err = _wiznet.send(SKT(handle)->fd, (const char*)data, size);
     DBG("rv: %d, size: %d\n", err, size);
 
-#if w5500_INTF_DBG
+#if WIZNET_INTF_DBG
     if (err > 0) {
         debug("[socket_sendto] data: ");
         for(int i = 0; i < err; i++) {
@@ -578,7 +625,7 @@ nsapi_size_or_error_t W5500Interface::socket_sendto(nsapi_socket_t handle, const
     return err;
 }
 
-nsapi_size_or_error_t W5500Interface::socket_recvfrom(nsapi_socket_t handle, SocketAddress *address,
+nsapi_size_or_error_t WIZnetInterface::socket_recvfrom(nsapi_socket_t handle, SocketAddress *address,
         void *buffer, nsapi_size_t size)
 {
     DBG("fd: %d\n", SKT(handle)->fd);
@@ -589,14 +636,14 @@ nsapi_size_or_error_t W5500Interface::socket_recvfrom(nsapi_socket_t handle, Soc
     }
 
     uint8_t info[8];
-    int len = _w5500.wait_readable(SKT(handle)->fd, w5500_WAIT_TIMEOUT, sizeof(info));
+    int len = _wiznet.wait_readable(SKT(handle)->fd, WIZNET_WAIT_TIMEOUT, sizeof(info));
     if (len < 0) {
         DBG("error: NSAPI_ERROR_WOULD_BLOCK\n");
         return NSAPI_ERROR_WOULD_BLOCK;
     }
 
     //receive endpoint information
-    _w5500.recv(SKT(handle)->fd, (char*)info, sizeof(info));
+    _wiznet.recv(SKT(handle)->fd, (char*)info, sizeof(info));
 
     char addr[17];
     snprintf(addr, sizeof(addr), "%d.%d.%d.%d", info[0], info[1], info[2], info[3]);
@@ -608,18 +655,18 @@ nsapi_size_or_error_t W5500Interface::socket_recvfrom(nsapi_socket_t handle, Soc
         address->set_port(port);
     }
 
-    int udp_size = info[6]<<8|info[7];
+    nsapi_size_t udp_size = info[6]<<8|info[7];
 
-    if (udp_size > (len-(int)sizeof(info))) {
+    if (udp_size > (len-sizeof(info))) {
         DBG("error: udp_size > (len-sizeof(info))\n");
         return -1;
     }
 
     //receive from socket
-    nsapi_size_or_error_t err = _w5500.recv(SKT(handle)->fd, (char*)buffer, udp_size);
+    nsapi_size_or_error_t err = _wiznet.recv(SKT(handle)->fd, (char*)buffer, udp_size);
     DBG("rv: %d\n", err);
 
-#if w5500_INTF_DBG
+#if WIZNET_INTF_DBG
     if (err > 0) {
         debug("[socket_recvfrom] buffer:");
         for(int i = 0; i < err; i++) {
@@ -633,35 +680,35 @@ nsapi_size_or_error_t W5500Interface::socket_recvfrom(nsapi_socket_t handle, Soc
         }
     }
 #endif
+
     return  err;
 }
 
-void W5500Interface::socket_attach(void *handle, void (*callbackFn)(void *), void *data)
+void WIZnetInterface::socket_attach(void *handle, void (*callbackFn)(void *), void *data)
 {
-    /*
-        if (handle == NULL) return;
-        DBG("fd: %d, callback: %p\n", SKT(handle)->fd, callback);
-        SKT(handle)->callback       = callback;
-        SKT(handle)->callback_data  = data;
-    */
+//	if (handle == NULL) return;
+//	DBG("fd: %d, callback: %p\n", SKT(handle)->fd, callback);
+//	SKT(handle)->callback       = callback;
+//	SKT(handle)->callback_data  = data;
+
     if (handle == NULL) return;
-    w5500_socket *socket = (w5500_socket *)handle;
-    w5500_sockets[socket->fd].callbackFn = callbackFn;
-    w5500_sockets[socket->fd].callback_data = data;
+    wiznet_socket *socket = (wiznet_socket *)handle;
+    wiznet_sockets[socket->fd].callbackFn = callbackFn;
+
+
+    wiznet_sockets[socket->fd].callback_data = data;
 }
 
-/*
-void W5500Interface::event()
+void WIZnetInterface::event()
 {
     for(int i=0; i<MAX_SOCK_NUM; i++){
-        if (w5500_sockets[i].callback) {
-            w5500_sockets[i].callback(w5500_sockets[i].data);
+        if (wiznet_sockets[i].callbackFn) {
+            wiznet_sockets[i].callbackFn(wiznet_sockets[i].callback_data);
         }
     }
 }
-*/
 
-nsapi_error_t W5500Interface::gethostbyname(const char *host,
+nsapi_error_t WIZnetInterface::gethostbyname(const char *host,
         SocketAddress *address, nsapi_version_t version)
 {
     DBG("DNS process %s", host);
@@ -677,17 +724,5 @@ nsapi_error_t W5500Interface::gethostbyname(const char *host,
     if ( !address->set_ip_address(dns.get_ip_address()) ) {
         return NSAPI_ERROR_DNS_FAILURE;
     }
-    return NSAPI_ERROR_OK;
-}
-
-nsapi_error_t W5500Interface::set_network(const char *ip_address, const char *netmask, const char *gateway)
-{
-    init(ip_address, netmask, gateway);
-    return NSAPI_ERROR_OK;
-}
-
-nsapi_error_t W5500Interface::set_dhcp(bool dhcp)
-{
-    _dhcp_enable = dhcp;
     return NSAPI_ERROR_OK;
 }

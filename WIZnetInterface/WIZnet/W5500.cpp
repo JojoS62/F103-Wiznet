@@ -6,6 +6,8 @@
 
 #ifdef USE_W5500
 
+using namespace W5500;  
+
 //Debug is disabled by default
 #define w5500_DBG 0
 
@@ -25,10 +27,8 @@
 #define DBG_SPI 0
 
 #if !defined(MBED_CONF_W5500_SPI_SPEED)
-#define MBED_CONF_W5500_SPI_SPEED   10000000
+#define MBED_CONF_W5500_SPI_SPEED   100000
 #endif
-
-using namespace W5500;
 
 
 WIZnet_Chip* WIZnet_Chip::inst;
@@ -36,24 +36,14 @@ WIZnet_Chip* WIZnet_Chip::inst;
 WIZnet_Chip::WIZnet_Chip(PinName mosi, PinName miso, PinName sclk, PinName _cs, PinName _reset):
     cs(_cs), reset_pin(_reset)
 {
-    connected_reset_pin = false;
     spi = new SPI(mosi, miso, sclk);
     DBG("SPI interface init...\n");
-    spi->format(8, 0);
+    spi->format(32, 0);
     spi->frequency(MBED_CONF_W5500_SPI_SPEED);
-
-    if (_cs != NC) {
-        cs = 1;
-    } else {
-        DBG("CS pin is necessary. So You have to set CS pin name\n");
-    }
-
-    if (_reset != NC) {
-        reset_pin = 1;
-        connected_reset_pin = true;
-    }
-
+    cs = 1;
+    reset_pin = 1;
     inst = this;
+    dhcp = false;
 }
 
 /*
@@ -64,6 +54,7 @@ WIZnet_Chip::WIZnet_Chip(SPI* spi, PinName _cs, PinName _reset):
     cs = 1;
     reset_pin = 1;
     inst = this;
+    dhcp = false;
 }
 */
 
@@ -123,8 +114,28 @@ bool WIZnet_Chip::connect(int socket, const char * host, int port, int timeout_m
         if ((timeout_ms) && (t.read_ms() > timeout_ms)) {
             return false;
         }
+        wait_us(1000);
     }
     return true;
+}
+
+bool WIZnet_Chip::gethostbyname(const char* host, uint32_t* ip)
+{
+#if 0
+    uint32_t addr = str_to_ip(host);
+    char buf[17];
+    snprintf(buf, sizeof(buf), "%d.%d.%d.%d", (addr>>24)&0xff, (addr>>16)&0xff, (addr>>8)&0xff, addr&0xff);
+    if (strcmp(buf, host) == 0) {
+        *ip = addr;
+        return true;
+    }
+    DNSClient client;
+    if(client.lookup(host)) {
+        *ip = client.ip;
+        return true;
+    }
+#endif
+    return false;
 }
 
 bool WIZnet_Chip::disconnect()
@@ -146,15 +157,14 @@ bool WIZnet_Chip::is_connected(int socket)
 // Reset the chip & set the buffer
 void WIZnet_Chip::reset()
 {
-    if(connected_reset_pin) {
-        reset_pin = 0;
-        wait_us(500); // 500us (w5500)
-        reset_pin = 1;
-        wait_us(400*1000); // 400ms (w5500)
-    }
+//    reset_pin = 1;
+    reset_pin = 0;
+    wait_us(500); // 500us (w5500)
+    reset_pin = 1;
+    wait_us(400*1000); // 400ms (w5500)
 
 #if defined(USE_WIZ550IO_MAC)
-    reg_rd_mac(SHAR, mac); // read the MAC address inside the module
+    //reg_rd_mac(SHAR, mac); // read the MAC address inside the module
 #endif
     // set RX and TX buffer size
     for (int socket = 0; socket < MAX_SOCK_NUM; socket++) {
@@ -194,7 +204,7 @@ int WIZnet_Chip::wait_readable(int socket, int wait_time_ms, int req_size)
     if (socket < 0) {
         return -1;
     }
-
+    
     Timer t;
     t.reset();
     t.start();
@@ -206,15 +216,15 @@ int WIZnet_Chip::wait_readable(int socket, int wait_time_ms, int req_size)
         while (1) {
             size1 = sreg<uint16_t>(socket, Sn_RX_RSR);
             size2 = sreg<uint16_t>(socket, Sn_RX_RSR);
-
+            
             if (size1 == size2) {
                 break;
             }
-
+            
             if (wait_time_ms != (-1) && t.read_ms() > wait_time_ms) {
-                return NSAPI_ERROR_WOULD_BLOCK;
+               return NSAPI_ERROR_WOULD_BLOCK;
             }
-
+            
             if (!is_connected(socket)) {
                 return -1;
             }
@@ -239,7 +249,7 @@ int WIZnet_Chip::wait_writeable(int socket, int wait_time_ms, int req_size)
     t.reset();
     t.start();
     t.start();
-
+        
     while(1) {
         //int size = sreg<uint16_t>(socket, Sn_TX_FSR);
         int size1, size2;
@@ -249,11 +259,11 @@ int WIZnet_Chip::wait_writeable(int socket, int wait_time_ms, int req_size)
             size1 = sreg<uint16_t>(socket, Sn_TX_FSR);
             size2 = sreg<uint16_t>(socket, Sn_TX_FSR);
             DBG("The time taken was %d %d %f seconds\n", wait_time_ms, t.read_ms(), t.read());
-
+            
             if (wait_time_ms != (-1) && t.read_ms() > wait_time_ms) {
-
+                
                 return NSAPI_ERROR_WOULD_BLOCK;
-            }
+            }        
         } while (size1 != size2);
         if (size1 > req_size) {
             return size1;
@@ -282,7 +292,7 @@ int WIZnet_Chip::send(int socket, const char * str, int len)
             case SOCK_CLOSED :
                 close(socket);
                 return 0;
-                //break;
+                break;
             case SOCK_UDP :
                 // ARP timeout is possible.
                 if ((tmp_Sn_IR & INT_TIMEOUT) == INT_TIMEOUT) {
@@ -385,12 +395,28 @@ void WIZnet_Chip::spi_read(uint16_t addr, uint8_t cb, uint8_t *buf, uint16_t len
     }
     debug("\r\n");
     if ((addr&0xf0ff)==0x4026 || (addr&0xf0ff)==0x4003) {
-        wait_ms(200);
+        ThisThread::sleep_for(200);
     }
 #endif
     spi->unlock();
 }
-/*
+
+uint32_t str_to_ip(const char* str)
+{
+    uint32_t ip = 0;
+    char* p = (char*)str;
+    for(int i = 0; i < 4; i++) {
+        ip |= atoi(p);
+        p = strchr(p, '.');
+        if (p == NULL) {
+            break;
+        }
+        ip <<= 8;
+        p++;
+    }
+    return ip;
+}
+
 void printfBytes(char* str, uint8_t* buf, int len)
 {
     printf("%s %d:", str, len);
@@ -427,5 +453,6 @@ void debug_hex(uint8_t* buf, int len)
     }
     debug("\n");
 }
-*/
+
+
 #endif

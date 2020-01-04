@@ -1,0 +1,8 @@
+{
+    "name": "easy-connect",
+    "target_overrides": {
+        "*": {
+        }
+    }
+}
+

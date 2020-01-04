@@ -2,11 +2,13 @@
     "configurations": [
         {
             "forcedInclude": [
-                "${workspaceFolder}/BUILD/BLUEPILL_F103RB/GCC_ARM-RELEASE/mbed_config.h"
+                "${workspaceFolder}/../../BUILD/${workspaceFolderBasename}/DEBUG/mbed_config.h"
             ],
             "name": "Windows",
             "includePath": [
-                "${workspaceFolder}/W5500Interface/*",
+                "${workspaceFolder}/WIZnetInterface/Wiznet/*",
+                "${workspaceFolder}/WIZnetInterface/*",
+                "${workspaceFolder}/easy-connect/*",
                 "${workspaceFolder}/../../libs/*",
                 "${workspaceFolder}/../../libs/Adafruit-GFX-Library/*",
                 "${workspaceFolder}/../../libs/Adafruit-GFX-Library/Fonts/*",
