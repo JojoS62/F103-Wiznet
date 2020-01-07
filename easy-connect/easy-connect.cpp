@@ -382,7 +382,11 @@ NetworkInterface* easy_connect(bool log_messages) {
         }
         return NULL;
     }
-    const char *ip_addr  = network_interface->get_ip_address();
+
+    SocketAddress socketAddress;
+    network_interface->get_ip_address(&socketAddress);
+
+    const char *ip_addr  = socketAddress.get_ip_address();
     if (ip_addr == NULL) {
         if (log_messages) {
             printf("[EasyConnect] ERROR - No IP address\n");
