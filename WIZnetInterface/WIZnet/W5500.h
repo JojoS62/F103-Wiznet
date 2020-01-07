@@ -7,8 +7,6 @@
 
 #define TEST_ASSERT(A) while(!(A)){debug("\n\n%s@%d %s ASSERT!\n\n",__PRETTY_FUNCTION__,__LINE__,#A);exit(1);};
 
-#define DEFAULT_WAIT_RESP_TIMEOUT 500
-
 namespace W5500 {
 
 enum Protocol {
@@ -85,7 +83,7 @@ public:
     * @param reset reset pin of the W5500
     */
     WIZnet_Chip(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName reset);
-    //WIZnet_Chip(SPI* spi, PinName cs, PinName reset);
+    WIZnet_Chip(SPI* spi, PinName cs, PinName reset);
 
     virtual ~WIZnet_Chip();
 
@@ -184,10 +182,6 @@ public:
     }
 
     bool gethostbyname(const char* host, uint32_t* ip);
-
-    static WIZnet_Chip * getInstance() {
-        return inst;
-    };
 
     int new_socket();
     uint16_t new_port();

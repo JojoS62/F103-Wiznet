@@ -27,36 +27,30 @@ using namespace W5500;
 #define DBG_SPI 0
 
 #if !defined(MBED_CONF_W5500_SPI_SPEED)
-#define MBED_CONF_W5500_SPI_SPEED   100000
+#define MBED_CONF_W5500_SPI_SPEED   (100000)
 #endif
 
-
-WIZnet_Chip* WIZnet_Chip::inst;
 
 WIZnet_Chip::WIZnet_Chip(PinName mosi, PinName miso, PinName sclk, PinName _cs, PinName _reset):
     cs(_cs), reset_pin(_reset)
 {
     spi = new SPI(mosi, miso, sclk);
     DBG("SPI interface init...\n");
-    spi->format(32, 0);
+    spi->format(8, 0);
     spi->frequency(MBED_CONF_W5500_SPI_SPEED);
     cs = 1;
     reset_pin = 1;
-    inst = this;
     dhcp = false;
 }
 
-/*
 WIZnet_Chip::WIZnet_Chip(SPI* spi, PinName _cs, PinName _reset):
     cs(_cs), reset_pin(_reset)
 {
     this->spi = spi;
     cs = 1;
     reset_pin = 1;
-    inst = this;
     dhcp = false;
 }
-*/
 
 WIZnet_Chip::~WIZnet_Chip()
 {
@@ -114,7 +108,6 @@ bool WIZnet_Chip::connect(int socket, const char * host, int port, int timeout_m
         if ((timeout_ms) && (t.read_ms() > timeout_ms)) {
             return false;
         }
-        wait_us(1000);
     }
     return true;
 }
