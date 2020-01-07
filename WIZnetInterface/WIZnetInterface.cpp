@@ -23,8 +23,9 @@
 static int udp_local_port = 0;
 
 #define SKT(h) ((wiznet_socket*)h)
-#define WIZNET_WAIT_TIMEOUT   400
-#define WIZNET_ACCEPT_TIMEOUT 300000 //5 mins timeout, retrun NSAPI_ERROR_WOULD_BLOCK if there is no connection during 5 mins
+#define WIZNET_WAIT_TIMEOUT   100
+//#define WIZNET_ACCEPT_TIMEOUT 300000 //5 mins timeout, retrun NSAPI_ERROR_WOULD_BLOCK if there is no connection during 5 mins
+#define WIZNET_ACCEPT_TIMEOUT 0 //5 mins timeout, retrun NSAPI_ERROR_WOULD_BLOCK if there is no connection during 5 mins
 
 #define WIZNET_INTF_DBG 0
 
@@ -249,6 +250,22 @@ int WIZnetInterface::disconnect()
     return 0;
 }
 
+nsapi_error_t WIZnetInterface::get_ip_address(SocketAddress *address)
+{
+    nsapi_addr_t addr = {NSAPI_IPv4, 0};
+    uint32_t ip = _wiznet.reg_rd<uint32_t>(SIPR);
+
+    addr.bytes[0] = (ip>>24) & 0xff;
+    addr.bytes[1] = (ip>>16) & 0xff;
+    addr.bytes[2] = (ip>>8) & 0xff;
+    addr.bytes[3] = ip & 0xff;
+ 
+    address->set_addr(addr);
+    strncpy(ip_string, address->get_ip_address(), sizeof(ip_string));
+
+    return NSAPI_ERROR_OK;
+}
+
 const char *WIZnetInterface::get_ip_address()
 {
     uint32_t ip = _wiznet.reg_rd<uint32_t>(SIPR);
@@ -425,7 +442,7 @@ nsapi_error_t WIZnetInterface::socket_accept(nsapi_socket_t server, nsapi_socket
     t.start();
 
     while(1) {
-        if (t.read_ms() > WIZNET_ACCEPT_TIMEOUT) {
+        if ((t.read_ms() > WIZNET_ACCEPT_TIMEOUT) && (WIZNET_ACCEPT_TIMEOUT != 0)) {
             debug("WIZnetInterface::socket_accept, timed out\r\n");
             return NSAPI_ERROR_WOULD_BLOCK;
         }

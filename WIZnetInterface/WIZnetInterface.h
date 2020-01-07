@@ -51,7 +51,7 @@ class WIZnetInterface : public NetworkStack, public EthInterface
 public:
 
 #if (not defined TARGET_WIZwiki_W7500) && (not defined TARGET_WIZwiki_W7500P) && (not defined TARGET_WIZwiki_W7500ECO)
-    //W5500Interface(SPI* spi, PinName cs, PinName reset);
+    WIZnetInterface(SPI* spi, PinName cs, PinName reset);
     WIZnetInterface(PinName mosi, PinName miso, PinName sclk, PinName cs, PinName reset);
 #endif
 
@@ -70,10 +70,17 @@ public:
      */
     virtual int disconnect();
  
-    /** Get the internally stored IP address
-     *  @return             IP address of the interface or null if not yet connected
+     /** Get the local IP address
+     *
+     *  @param          address SocketAddress representation of the local IP address
+     *  @retval         NSAPI_ERROR_OK on success
+     *  @retval         NSAPI_ERROR_UNSUPPORTED if this feature is not supported
+     *  @retval         NSAPI_ERROR_PARAMETER if the provided pointer is invalid
+     *  @retval         NSAPI_ERROR_NO_ADDRESS if the address cannot be obtained from stack
      */
+    virtual nsapi_error_t get_ip_address(SocketAddress *address);
     virtual const char *get_ip_address();
+    
      /** Get the local gateway
      *
      *  @return         Null-terminated representation of the local gateway
@@ -315,10 +322,20 @@ private:
 	DNSClient  dns;
 
 	virtual void socket_check_read();
-
-//	Thread *_daemon;
-//    void daemon();
-
 };
+
+MBED_WEAK EthInterface *EthInterface::get_target_default_instance()
+{
+    uint8_t mac_addr[6] = MBED_CONF_W5500_MAC;
+
+#ifdef W5500_SPI
+    static WIZnetInterface eth(W5500_SPI, W5500_SPI_CS, W5500_SPI_RST); // spi, cs, reset
+#else
+    static WIZnetInterface eth(W5500_SPI_MOSI, W5500_SPI_MISO, W5500_SPI_SCLK, W5500_SPI_CS, W5500_SPI_RST); // mosi, miso, sclk, cs, reset
+#endif
+    eth.init(mac_addr);
+
+    return &eth;
+}
 
 #endif
