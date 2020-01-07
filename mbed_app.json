@@ -23,6 +23,14 @@
         "Wiznet-rst": {
             "macro_name": "W5500_SPI_RST",
             "value": "PB_9"
+        },
+        "Wiznet-spi-speed": {
+            "macro_name": "MBED_CONF_W5500_SPI_SPEED",
+            "value": "25000000"
+        },
+        "Wiznet-MAC": {
+            "macro_name": "MBED_CONF_W5500_MAC",
+            "value": "{0x00, 0x08, 0xdc, 0x45, 0x56, 0x67}"
         }
     },
     "target_overrides": {
@@ -41,6 +49,7 @@
             "target.stdio_uart_rx": "PA_10"
         },
         "BLACKPILL_F411CE": {
+            "target.network-default-interface-type": "ETHERNET"
         },
         "BLUEPILL_F103RB": {
             "target.default_lib": "small"
