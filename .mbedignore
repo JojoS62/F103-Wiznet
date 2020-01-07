@@ -1,7 +1,6 @@
 MQTTClient/*
 MQTTPacket/*
 WebsocketClient/*
-TFTPServer/*
 util/cmdb.*
 Chart/*
 lvgl/*
